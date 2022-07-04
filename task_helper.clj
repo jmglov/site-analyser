@@ -15,8 +15,10 @@
                  :default "s3-log-parser"}
    :lambda-role {:doc "IAM role name"
                  :default "s3-log-parser-lambda"}
-   :layer-name {:doc "Name and version of custom runtime layer"
-                :default "blambda:1"}
+   :pods-layer {:doc "Name of pods layer (uses latest version unless specified as name:version)"
+                :default "s3-log-parser-pods"}
+   :runtime-layer {:doc "Name of custom runtime layer (uses latest version unless specified as name:version)"
+                   :default "blambda"}
    :target-dir {:doc "Build output directory"
                 :default "target"}
    :work-dir {:doc "Working directory"
@@ -58,20 +60,33 @@
          (into {})
          (merge default-args))))
 
-(defn lambda-zipfile [target-dir]
-  (str (-> (fs/file target-dir) .getAbsolutePath)
-       "/function.zip"))
+(defn target-file [target-dir filename]
+  (format "%s/%s" (-> (fs/file target-dir) .getAbsolutePath) filename))
 
-(defn create-lambda [lambda aws-region bb-arch
-                     lambda-handler lambda-name lambda-role
-                     layer-name zipfile]
+(defn latest-layer-version [lambda layer-name]
+  (if (string/includes? layer-name ":")
+    layer-name
+    (let [latest-version (->> (aws/invoke lambda {:op :ListLayerVersions
+                                                  :request {:LayerName layer-name}})
+                              :LayerVersions
+                              (sort-by :Version)
+                              last
+                              :Version)]
+      (format "%s:%s" layer-name latest-version))))
+
+(defn create-lambda [lambda
+                     {:keys [aws-region bb-arch
+                             lambda-handler lambda-name lambda-role
+                             pods-layer runtime-layer zipfile]}]
   (let [lambda-arch (if (= "amd64" bb-arch) "x86_64" "arm64")
         runtime (if (= "amd64" bb-arch) "provided" "provided.al2")
         sts (aws/client {:api :sts
                          :region aws-region})
         account-id (-> (aws/invoke sts {:op :GetCallerIdentity}) :Account)
-        layer-arn (format "arn:aws:lambda:%s:%s:layer:%s"
-                          aws-region account-id layer-name)
+        layer-arns (->> [runtime-layer pods-layer]
+                        (map #(format "arn:aws:lambda:%s:%s:layer:%s"
+                                      aws-region account-id
+                                      (latest-layer-version lambda %))))
         role-arn (format "arn:aws:iam::%s:role/%s"
                          account-id lambda-role)
         req {:FunctionName lambda-name
@@ -79,7 +94,7 @@
              :Role role-arn
              :Code {:ZipFile zipfile}
              :Handler lambda-handler
-             :Layers [layer-arn]
+             :Layers layer-arns
              :Architectures [lambda-arch]}
         _ (println "Creating lambda:" (pr-str req))
         res (aws/invoke lambda {:op :CreateFunction
@@ -87,11 +102,12 @@
     (when (contains? res :cognitect.anomalies/category)
       (println "Error:" (pr-str res)))))
 
-(defn update-lambda [lambda layer-name zipfile])
+(defn update-lambda [lambda runtime-layer zipfile])
 
-(defn create-or-update-lambda [aws-region bb-arch
-                               lambda-handler lambda-name lambda-role
-                               layer-name zipfile]
+(defn create-or-update-lambda [{:keys [aws-region bb-arch
+                                       lambda-handler lambda-name lambda-role
+                                       runtime-layer zipfile]
+                                :as args}]
   (let [lambda (aws/client {:api :lambda
                             :region aws-region})
         _ (println "Checking to see if lambda exists:" lambda-name)
@@ -99,7 +115,5 @@
                                                :request {:FunctionName lambda-name}})
                            (contains? :Configuration))]
     (if lambda-exists?
-      (update-lambda lambda lambda-name zipfile)
-      (create-lambda lambda aws-region bb-arch
-                     lambda-handler lambda-name lambda-role
-                     layer-name zipfile))))
+      (update-lambda lambda args)
+      (create-lambda lambda args))))
