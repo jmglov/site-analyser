@@ -1,0 +1,50 @@
+{:paths ["."]
+ :pods {org.babashka/aws {:version "0.1.2"}}
+ :tasks
+ {:requires ([babashka.fs :as fs]
+             [task-helper :as th])
+
+  help {:doc "Displays command line options"
+        :task (do
+                (th/help))}
+
+  clean {:doc "Removes work and target folders."
+         :task (let [{:keys [target-dir work-dir]} (th/parse-args)]
+                 (doseq [dir [target-dir work-dir]]
+                   (println "Removing directory:" dir)
+                   (fs/delete-tree dir)))}
+
+  build {:doc "Builds lambda artifact"
+         :requires ([clojure.java.io :as io]
+                    [clojure.java.shell :refer [sh]])
+         :task (let [{:keys [target-dir work-dir]} (th/parse-args)
+                     src-dir "src"
+                     lambda-zipfile (th/lambda-zipfile target-dir)]
+                 (doseq [dir [target-dir work-dir]]
+                   (fs/create-dirs dir))
+
+                 (doseq [f ["bb.edn" "s3_log_parser.clj"]]
+                   (println "Adding file" f)
+                   (fs/delete-if-exists (format "%s/%s" work-dir f))
+                   (fs/copy (format "%s/%s" src-dir f) work-dir))
+
+                 (println "Compressing lambda archive:" lambda-zipfile)
+                 (let [{:keys [exit err]}
+                       (sh "zip" lambda-zipfile "*"
+                           :dir work-dir)]
+                   (when (not= 0 exit)
+                     (println "Error:" err))))}
+
+  deploy {:doc "Deploys lambda using babashka-aws."
+          :depends [build]
+          :requires ([pod.babashka.aws :as aws])
+          :task (let [{:keys [bb-arch
+                              lambda-handler lambda-name lambda-role
+                              layer-name aws-region target-dir]}
+                      (th/parse-args)
+
+                      lambda-zipfile (th/lambda-zipfile target-dir)
+                      zipfile (fs/read-all-bytes lambda-zipfile)]
+                  (th/create-or-update-lambda aws-region bb-arch
+                                              lambda-handler lambda-name lambda-role
+                                              layer-name zipfile))}}}

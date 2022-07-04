@@ -1,0 +1,2 @@
+{:paths ["."]
+ :pods {org.babashka/aws {:version "0.1.2"}}}

@@ -1,0 +1,10 @@
+/classes/
+/target/
+/.work/
+/bb
+.lein-deps-sum
+.lein-repl-history
+.lein-plugins/
+.lein-failures
+.nrepl-port
+.cpcache/
