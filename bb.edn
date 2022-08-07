@@ -68,18 +68,15 @@
                       zipfile (fs/read-all-bytes lambda-zipfile)]
                   (th/create-or-update-lambda (assoc args :zipfile zipfile)))}
 
+  deploy-deps {:doc "Deploys deps layer using babashka-aws."
+               :task (let [{:keys [deps-layer]} (th/parse-args)]
+                       (th/deploy-layer {:layer-name deps-layer
+                                         :layer-filename "deps.zip"
+                                         :runtimes ["provided" "provided.al2"]
+                                         :architectures ["x86_64" "arm64"]}))}
+
   deploy-pods {:doc "Deploys pods layer using babashka-aws."
                :depends [build-pods]
-               :requires ([pod.babashka.aws :as aws])
-               :task (let [{:keys [pods-layer aws-region target-dir]} (th/parse-args)
-                           pods-zipfile (th/target-file target-dir "pods.zip")
-                           client (aws/client {:api :lambda
-                                               :region aws-region})
-                           zipfile (fs/read-all-bytes pods-zipfile)
-                           _ (println "Publishing layer version for layer" pods-layer)
-                           res (aws/invoke client {:op :PublishLayerVersion
-                                                   :request {:LayerName pods-layer
-                                                             :Content {:ZipFile zipfile}}})]
-                       (if (:cognitect.anomalies/category res)
-                         (prn "Error:" res)
-                         (println "Published layer" (:LayerVersionArn res))))}}}
+               :task (let [{:keys [pods-layer]} (th/parse-args)]
+                       (th/deploy-layer {:layer-name pods-layer
+                                         :layer-filename "pods.zip"}))}}}

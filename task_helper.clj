@@ -15,6 +15,8 @@
                  :default "s3-log-parser"}
    :lambda-role {:doc "IAM role name"
                  :default "s3-log-parser-lambda"}
+   :deps-layer {:doc "Name of deps layer (uses latest version unless specified as name:version)"
+                :default "s3-log-parser-deps"}
    :pods-layer {:doc "Name of pods layer (uses latest version unless specified as name:version)"
                 :default "s3-log-parser-pods"}
    :runtime-layer {:doc "Name of custom runtime layer (uses latest version unless specified as name:version)"
@@ -117,3 +119,20 @@
     (if lambda-exists?
       (update-lambda lambda args)
       (create-lambda lambda args))))
+
+(defn deploy-layer [{:keys [layer-name layer-filename runtimes architectures]}]
+  (let [{:keys [aws-region target-dir]} (parse-args)
+        layer-filename (target-file target-dir layer-filename)
+        client (aws/client {:api :lambda
+                            :region aws-region})
+        zipfile (fs/read-all-bytes layer-filename)
+        request (merge {:LayerName layer-name
+                        :Content {:ZipFile zipfile}}
+                       (when runtimes {:CompatibleRuntimes runtimes})
+                       (when architectures {:CompatibleArchitectures architectures}))
+        _ (println "Publishing layer version for layer" layer-name)
+        res (aws/invoke client {:op :PublishLayerVersion
+                                :request request})]
+    (if (:cognitect.anomalies/category res)
+      (prn "Error:" res)
+      (println "Published layer" (:LayerVersionArn res)))))
