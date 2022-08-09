@@ -1,62 +1,16 @@
 {:paths ["."]
+ :deps {net.jmglov/blambda {:local/root "../blambda"}
+        #_"You use the newest SHA here:"
+        #_{:git/url "https://github.com/jmglov/blambda.git"
+           :git/sha "2453e15cf75c03b2b02de5ca89c76081bba40251"}}
  :pods {org.babashka/aws {:version "0.1.2"}}
  :tasks
- {:requires ([babashka.fs :as fs]
+ {:requires ([blambda.cli :as blambda]
+             [babashka.fs :as fs]
              [task-helper :as th])
 
-  help {:doc "Displays command line options"
-        :task (do
-                (th/help))}
-
-  clean {:doc "Removes work and target folders."
-         :task (let [{:keys [target-dir work-dir]} (th/parse-args)]
-                 (doseq [dir [target-dir work-dir]]
-                   (println "Removing directory:" dir)
-                   (fs/delete-tree dir)))}
-
-  build {:doc "Builds lambda artifact"
-         :requires ([clojure.java.shell :refer [sh]])
-         :task (let [{:keys [target-dir work-dir]} (th/parse-args)
-                     work-dir (str work-dir "/lambda")
-                     src-dir "src"
-                     lambda-zipfile (th/target-file target-dir "function.zip")]
-                 (doseq [dir [target-dir work-dir]]
-                   (fs/create-dirs dir))
-
-                 (doseq [f ["bb.edn" "s3_log_parser.clj"]]
-                   (println "Adding file" f)
-                   (fs/delete-if-exists (format "%s/%s" work-dir f))
-                   (fs/copy (format "%s/%s" src-dir f) work-dir))
-
-                 (println "Compressing lambda archive:" lambda-zipfile)
-                 (let [{:keys [exit err]}
-                       (sh "zip" "-r" lambda-zipfile "."
-                           :dir work-dir)]
-                   (when (not= 0 exit)
-                     (println "Error:" err))))}
-
-  build-pods {:doc "Builds pods layer"
-              :requires ([clojure.java.shell :refer [sh]])
-              :task (let [{:keys [target-dir work-dir]} (th/parse-args)
-                          work-dir (str work-dir "/pods")
-                          pods-dir (str (fs/home) "/.babashka/pods")
-                          pods-zipfile (th/target-file target-dir "pods.zip")]
-                      (doseq [dir [target-dir work-dir]]
-                        (fs/create-dirs dir))
-
-                      (doseq [pod ["org.babashka/aws/0.1.2"]
-                              :let [dst (format "%s/.babashka/pods/repository/%s" work-dir pod)]]
-                        (when-not (fs/exists? dst)
-                          (println "Adding pod" pod)
-                          (fs/copy-tree (format "%s/repository/%s" pods-dir pod) dst)))
-
-                      (println "Compressing pods layer" pods-zipfile
-                               "from dir:" work-dir)
-                      (let [{:keys [exit err]}
-                            (sh "zip" "-r" pods-zipfile "."
-                                :dir work-dir)]
-                        (when (not= 0 exit)
-                          (println "Error:" err))))}
+  blambda {:doc "Controls Blambda runtime and layers"
+           :task (blambda/dispatch)}
 
   deploy {:doc "Deploys lambda using babashka-aws."
           :depends [build]
@@ -66,17 +20,4 @@
 
                       lambda-zipfile (th/target-file target-dir "function.zip")
                       zipfile (fs/read-all-bytes lambda-zipfile)]
-                  (th/create-or-update-lambda (assoc args :zipfile zipfile)))}
-
-  deploy-deps {:doc "Deploys deps layer using babashka-aws."
-               :task (let [{:keys [deps-layer]} (th/parse-args)]
-                       (th/deploy-layer {:layer-name deps-layer
-                                         :layer-filename "deps.zip"
-                                         :runtimes ["provided" "provided.al2"]
-                                         :architectures ["x86_64" "arm64"]}))}
-
-  deploy-pods {:doc "Deploys pods layer using babashka-aws."
-               :depends [build-pods]
-               :task (let [{:keys [pods-layer]} (th/parse-args)]
-                       (th/deploy-layer {:layer-name pods-layer
-                                         :layer-filename "pods.zip"}))}}}
+                  (th/create-or-update-lambda (assoc args :zipfile zipfile)))}}}
