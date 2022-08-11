@@ -10,7 +10,10 @@
              [task-helper :as th])
 
   blambda {:doc "Controls Blambda runtime and layers"
-           :task (blambda/dispatch)}
+           :task (blambda/dispatch
+                  {:bb-arch "arm64"
+                   :deps-path "src/bb.edn"
+                   :deps-layer-name "s3-log-parser-deps"})}
 
   deploy {:doc "Deploys lambda using babashka-aws."
           :depends [build]
