@@ -41,8 +41,5 @@
        (re-seq log-regex)
        first
        (drop 1)
-       (interleave log-keys)
-       (partition-all 2)
-       (remove (fn [[k v]] (= "-" v)))
-       (map vec)
-       (into {})))
+       (map #(if (= "-" %) nil %))
+       (zipmap log-keys)))
