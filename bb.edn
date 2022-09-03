@@ -11,16 +11,15 @@
 
   blambda {:doc "Controls Blambda runtime and layers"
            :task (blambda/dispatch
-                  {:bb-arch "arm64"
-                   :deps-path "src/bb.edn"
-                   :deps-layer-name "s3-log-parser-deps"})}
+                  {:exec-args {:bb-arch "arm64"
+                               :deps-path "src/bb.edn"
+                               :deps-layer-name "s3-log-parser-deps"}})}
 
   deploy {:doc "Deploys lambda using babashka-aws."
           :depends [build]
           :requires ([pod.babashka.aws :as aws])
           :task (let [{:keys [target-dir] :as args}
                       (th/parse-args)
-
                       lambda-zipfile (th/target-file target-dir "function.zip")
                       zipfile (fs/read-all-bytes lambda-zipfile)]
                   (th/create-or-update-lambda (assoc args :zipfile zipfile)))}}}
