@@ -1,4 +1,4 @@
-(ns s3-log-parser
+(ns handler
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [cheshire.core :as json]
@@ -60,9 +60,9 @@
        io/reader
        line-seq))
 
-(defn handler
+(defn handle-request
   ([event]
-   (handler event {}))
+   (handle-request event {}))
   ([event _context]
    (log "Invoked with event" {:event event})
    (try
