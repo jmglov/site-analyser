@@ -21,11 +21,10 @@
    :s3-bucket (System/getenv "S3_BUCKET")
    :s3-prefix (System/getenv "S3_PREFIX")})
 
-(defn handle-error [resp]
-  (let [{err :Error} resp]
-    (if err
-      (error (:Message err) err)
-      resp)))
+(defn handle-error [{err :Error :as resp}]
+  (if err
+    (error (:Message err) err)
+    resp))
 
 (log "Lambda starting" {:config config})
 
