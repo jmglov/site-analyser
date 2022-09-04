@@ -31,12 +31,15 @@
           (map :Key)))))
 
 (defn list-cloudfront-logs
+  ([client]
+   (list-cloudfront-logs client nil {}))
   ([client date]
    (list-cloudfront-logs client date {}))
   ([{:keys [s3-prefix cloudfront-dist-id] :as client} date opts]
-   (list-objects client
-                 (format "%s%s.%s-" s3-prefix cloudfront-dist-id date)
-                 opts)))
+   (let [prefix (if date
+                  (format "%s%s.%s-" s3-prefix cloudfront-dist-id date)
+                  (format "%s%s." s3-prefix cloudfront-dist-id))]
+     (list-objects client prefix opts))))
 
 (defn list-s3-logs
   ([client date]
