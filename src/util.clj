@@ -18,3 +18,10 @@
       (catch Exception _
         (error (format "Invalid date: %s" date-str) {:date date-str})))
     (LocalDate/now)))
+
+(defn parse-int [s]
+  (when s
+    (try
+      (Integer/parseInt s)
+      (catch Exception _
+        (error (format "Failed to parse integer: %s" s) {:string s})))))
