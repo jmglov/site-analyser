@@ -15,6 +15,9 @@
                                :deps-path "src/bb.edn"
                                :deps-layer-name "s3-log-parser-deps"}})}
 
+  configure {:doc "Configures Terraform variables"
+             :task (th/configure)}
+
   deploy {:doc "Deploys lambda using babashka-aws."
           :depends [build]
           :requires ([pod.babashka.aws :as aws])
@@ -22,4 +25,7 @@
                       (th/parse-args)
                       lambda-zipfile (th/target-file target-dir "function.zip")
                       zipfile (fs/read-all-bytes lambda-zipfile)]
-                  (th/create-or-update-lambda (assoc args :zipfile zipfile)))}}}
+                  (th/create-or-update-lambda (assoc args :zipfile zipfile)))}
+
+  tf {:doc "Runs arbitrary Terraform command with configuration"
+      :task (th/run-tf *command-line-args*)}}}

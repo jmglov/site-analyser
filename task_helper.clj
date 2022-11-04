@@ -1,7 +1,10 @@
 (ns task-helper
   (:require [babashka.fs :as fs]
+            [babashka.process :as p]
             [clojure.string :as string]
             [pod.babashka.aws :as aws]))
+
+(def tf-config-filename "terraform.tfvars")
 
 (def defaults
   {:aws-region {:doc "AWS region"
@@ -25,6 +28,9 @@
                 :default "target"}
    :work-dir {:doc "Working directory"
               :default ".work"}})
+
+(def tf-config
+  {"logs_bucket" "Name of S3 bucket where logs are stored"})
 
 (defn help []
   (println (str
@@ -136,3 +142,39 @@
     (if (:cognitect.anomalies/category res)
       (prn "Error:" res)
       (println "Published layer" (:LayerVersionArn res)))))
+
+(defn read-tf-config []
+  (if (fs/exists? tf-config-filename)
+    (->> (slurp tf-config-filename)
+         string/split-lines
+         (map (fn [s]
+                (->> (re-seq #"(.+) = \"(.+)\"" s)
+                     first
+                     (drop 1)
+                     vec)))
+         (into {}))
+    {}))
+
+(defn configure []
+  (let [cfg (read-tf-config)
+        new-cfg (->> tf-config
+                     (map (fn [[k doc]]
+                            (print (format "%s (%s) [%s]: " k doc (or (cfg k) "")))
+                            (flush)
+                            (let [v (read-line)]
+                              (format "%s = \"%s\""
+                                      k (if (empty? v) (or (cfg k) "") v)))))
+                     (string/join "\n"))]
+    (spit tf-config-filename new-cfg)))
+
+(defn tf-var [k v]
+  (format "-var=\"%s=%s\"" k v))
+
+(defn run-tf [tf-args]
+  (let [aws-region (or (System/getenv "AWS_DEFAULT_REGION") (System/getenv "AWS_REGION"))
+        cmd (cons "terraform" tf-args)
+        _ (apply println cmd)
+        proc (p/process cmd {:inherit true
+                             :shutdown p/destroy-tree
+                             :extra-env {"TF_VAR_aws_region" aws-region}})]
+    @proc))

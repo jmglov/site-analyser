@@ -8,3 +8,7 @@
 .lein-failures
 .nrepl-port
 .cpcache/
+.terraform.lock.hcl
+.terraform/
+terraform.tfstate
+terraform.tfvars
