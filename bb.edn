@@ -3,29 +3,17 @@
         #_"You use the newest SHA here:"
         #_{:git/url "https://github.com/jmglov/blambda.git"
            :git/sha "2453e15cf75c03b2b02de5ca89c76081bba40251"}}
- :pods {org.babashka/aws {:version "0.1.2"}}
  :tasks
- {:requires ([blambda.cli :as blambda]
-             [babashka.fs :as fs]
-             [task-helper :as th])
+ {:requires ([blambda.cli :as blambda])
 
   blambda {:doc "Controls Blambda runtime and layers"
            :task (blambda/dispatch
-                  {:exec-args {:bb-arch "arm64"
-                               :deps-path "src/bb.edn"
-                               :deps-layer-name "s3-log-parser-deps"}})}
-
-  configure {:doc "Configures Terraform variables"
-             :task (th/configure)}
-
-  deploy {:doc "Deploys lambda using babashka-aws."
-          :depends [build]
-          :requires ([pod.babashka.aws :as aws])
-          :task (let [{:keys [target-dir] :as args}
-                      (th/parse-args)
-                      lambda-zipfile (th/target-file target-dir "function.zip")
-                      zipfile (fs/read-all-bytes lambda-zipfile)]
-                  (th/create-or-update-lambda (assoc args :zipfile zipfile)))}
-
-  tf {:doc "Runs arbitrary Terraform command with configuration"
-      :task (th/run-tf *command-line-args*)}}}
+                  {:bb-arch "arm64"
+                   :deps-layer-name "s3-log-parser-deps"
+                   :lambda-name "site-analyser"
+                   :lambda-handler "handler/handle-request"
+                   :source-files ["handler.clj"
+                                  "logs.clj"
+                                  "parser.clj"
+                                  "queries.clj"
+                                  "util.clj"]})}}}
