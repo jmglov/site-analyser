@@ -1,4 +1,5 @@
 (ns util
+  (:require [clojure.java.io :as io])
   (:import (java.time Instant
                       LocalDate)))
 
@@ -25,3 +26,7 @@
       (Integer/parseInt s)
       (catch Exception _
         (error (format "Failed to parse integer: %s" s) {:string s})))))
+
+(defn read-edn [f]
+  (with-open [r (io/reader f)]
+    (read (java.io.PushbackReader. r))))

@@ -14,51 +14,65 @@
 (defn mk-client [{:keys [region] :as config}]
   (assoc config :s3-client (aws/client {:api :s3, :region region})))
 
-(defn list-objects
-  ([client prefix]
-   (list-objects client prefix {}))
-  ([{:keys [s3-client s3-bucket]} prefix {:keys [limit]}]
-   (let [request (merge {:Bucket s3-bucket
-                         :Prefix prefix}
-                        (when limit
-                          {:MaxKeys limit}))
-         response (aws/invoke s3-client {:op :ListObjectsV2
-                                         :request request})]
-     (log "Listing objects" request)
-     (log "Response" response)
-     (->> response
-          handle-error
-          :Contents
-          (map :Key)))))
+(defn mk-s3-req
+  ([s3-bucket prefix s3-page-size]
+   (mk-s3-req s3-bucket prefix s3-page-size nil))
+  ([s3-bucket prefix s3-page-size continuation-token]
+   (merge {:Bucket s3-bucket
+           :Prefix prefix}
+          (when s3-page-size
+            {:MaxKeys s3-page-size})
+          (when continuation-token
+            {:ContinuationToken continuation-token}))))
+
+(defn get-s3-page [{:keys [s3-client s3-bucket s3-page-size]}
+                   prefix
+                   {continuation-token :NextContinuationToken
+                    truncated? :IsTruncated
+                    page-num :page-num
+                    :as prev}]
+  (when prev (log "Got page" (dissoc prev :Contents)))
+  (let [page-num (inc (or page-num 0))
+        done? (false? truncated?)
+        request (mk-s3-req s3-bucket prefix s3-page-size continuation-token)
+        response (when-not done?
+                   (log (format "Requesting page %d" page-num) request)
+                   (-> (aws/invoke s3-client {:op :ListObjectsV2
+                                              :request request})
+                       (assoc :page-num page-num)))]
+    response))
+
+(defn lazy-concat [colls]
+  (lazy-seq
+   (when-first [c colls]
+     (lazy-cat c (lazy-concat (rest colls))))))
+
+(defn list-objects [logs-client prefix]
+  (->> (iteration (partial get-s3-page logs-client prefix)
+                  :vf :Contents)
+       lazy-concat
+       (map :Key)))
 
 (defn list-cloudfront-logs
   ([client]
-   (list-cloudfront-logs client nil {}))
-  ([client date]
-   (list-cloudfront-logs client date {}))
-  ([{:keys [s3-prefix cloudfront-dist-id] :as client} date opts]
+   (list-cloudfront-logs client nil))
+  ([{:keys [s3-prefix cloudfront-dist-id] :as client} date]
    (let [prefix (if date
                   (format "%s%s.%s-" s3-prefix cloudfront-dist-id date)
                   (format "%s%s." s3-prefix cloudfront-dist-id))]
-     (list-objects client prefix opts))))
+     (list-objects client prefix))))
 
-(defn list-s3-logs
-  ([client date]
-   (list-s3-logs client date {}))
-  ([{:keys [s3-prefix] :as client} date opts]
-   (list-objects client (format "%s%s" s3-prefix date) opts)))
+(defn list-s3-logs [{:keys [s3-prefix] :as client} date]
+  (list-objects client (format "%s%s" s3-prefix date)))
 
-(defn list-logs
-  ([client date log-type]
-   (list-logs client date log-type {}))
-  ([client date log-type opts]
-   (let [list-fn (case log-type
-                   :cloudfront list-cloudfront-logs
-                   :s3 list-s3-logs
-                   (throw (ex-info (format "Invalid log type: %s" log-type)
-                                   {:s3-log-parser/error :invalid-log-type
-                                    :log-type log-type})))]
-     (list-fn client date opts))))
+(defn list-logs [client date log-type]
+  (let [list-fn (case log-type
+                  :cloudfront list-cloudfront-logs
+                  :s3 list-s3-logs
+                  (throw (ex-info (format "Invalid log type: %s" log-type)
+                                  {:s3-log-parser/error :invalid-log-type
+                                   :log-type log-type})))]
+    (list-fn client date)))
 
 (defn get-lines [{content-type :ContentType
                   body :Body}]
@@ -85,9 +99,7 @@
   ([client date]
    (get-log-entries client date :cloudfront {}))
   ([client date log-type]
-   (get-log-entries client date log-type {}))
-  ([client date log-type opts]
-   (let [logs (list-logs client date log-type opts)
+   (let [logs (list-logs client date log-type)
          entries (->> logs
                       (mapcat (partial get-log-lines client))
                       (parser/parse-lines log-type))]
