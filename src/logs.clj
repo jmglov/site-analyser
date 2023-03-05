@@ -4,6 +4,7 @@
             [com.grzm.awyeah.client.api :as aws]
             [parser]
             [util :refer [log error]])
+            [util :refer [lazy-concat log error]])
   (:import (java.util.zip GZIPInputStream)))
 
 (defn handle-error [{err :Error :as resp}]

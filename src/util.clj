@@ -20,6 +20,11 @@
         (error (format "Invalid date: %s" date-str) {:date date-str})))
     (LocalDate/now)))
 
+(defn lazy-concat [colls]
+  (lazy-seq
+   (when-first [c colls]
+     (lazy-cat c (lazy-concat (rest colls))))))
+
 (defn parse-int [s]
   (when s
     (try
