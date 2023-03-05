@@ -3,6 +3,14 @@
   (:import (java.time Instant
                       LocalDate)))
 
+(defmacro ->map [& ks]
+  (assert (every? symbol? ks))
+  (zipmap (map keyword ks)
+          ks))
+
+(defn ->int [s]
+  (Integer/parseUnsignedInt s))
+
 (defn log [msg data]
   (prn {:msg msg
         :data data
