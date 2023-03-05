@@ -11,6 +11,8 @@
     (error (:Message err) err)
     resp))
 
+;; Extra config:
+;; - :limit N  if set, limit to one N logfiles
 (defn mk-client [{:keys [region] :as config}]
   (assoc config :s3-client (aws/client {:api :s3, :region region})))
 
@@ -42,16 +44,13 @@
                        (assoc :page-num page-num)))]
     response))
 
-(defn lazy-concat [colls]
-  (lazy-seq
-   (when-first [c colls]
-     (lazy-cat c (lazy-concat (rest colls))))))
-
-(defn list-objects [logs-client prefix]
-  (->> (iteration (partial get-s3-page logs-client prefix)
-                  :vf :Contents)
-       lazy-concat
-       (map :Key)))
+(defn list-objects [{:keys [limit] :as logs-client} prefix]
+  (let [apply-limit (if limit (partial take limit) identity)]
+    (->> (iteration (partial get-s3-page logs-client prefix)
+                    :vf :Contents)
+         lazy-concat
+         apply-limit
+         (map :Key))))
 
 (defn list-cloudfront-logs
   ([client]
