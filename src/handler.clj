@@ -7,7 +7,6 @@
   {:region (System/getenv "AWS_REGION")
    :s3-bucket (System/getenv "S3_BUCKET")
    :s3-prefix (System/getenv "S3_PREFIX")
-   :s3-page-size (System/getenv "S3_PAGE_SIZE")
    :cloudfront-dist-id (System/getenv "CLOUDFRONT_DIST_ID")
    :log-type (or (System/getenv "LOG_TYPE") :cloudfront)})
 
@@ -24,11 +23,10 @@
    (log "Invoked with event" {:event event})
    (try
      (let [{:keys [log-type]} config
-           [date-str limit-str] (map #(get-in event ["queryStringParameters"])
-                                     ["date" "limit"])
+           params (get event "queryStringParameters" event)
+           date-str (event "date")
            date (util/get-date date-str)
-           limit (util/parse-int limit-str)
-           body (logs/get-log-entries logs-client date log-type {:limit limit})]
+           body (logs/get-log-entries logs-client date log-type)]
        (log "Successfully parsed logs" body)
        {"statusCode" 200
         "body" (json/encode body)})
