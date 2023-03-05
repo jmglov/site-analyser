@@ -24,11 +24,24 @@ using it for managing your infrastructure) in the manner of your choosing.
 
 ## Building
 
-Refer to the [Building](https://github.com/jmglov/blambda#building) and
-[Dependencies](https://github.com/jmglov/blambda#dependencies) sections of the
-Blambda documentation.
+Set the following environment variables:
+- `ARTIFACTS_BUCKET`: S3 bucket to use for lambda artifacts
+- `CLOUDFRONT_DIST_ID`: ID of your Cloudfront distribution
+- `S3_BUCKET`: S3 bucket where your logs are stored
+- `S3_PREFIX`: prefix in the bucket where your logs are stored
+
+Run:
+
+``` sh
+bb blambda build-all
+```
 
 ## Deploying
 
-Refer to the [Deploying](https://github.com/jmglov/blambda#deploying) section of
-the Blambda documentation.
+Run:
+
+``` sh
+bb blambda terraform write-config
+bb blambda terraform import-artifacts-bucket
+bb blambda terraform apply
+```
