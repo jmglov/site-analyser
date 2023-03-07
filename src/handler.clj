@@ -1,6 +1,7 @@
 (ns handler
   (:require [cheshire.core :as json]
             [logs]
+            [time]
             [util :refer [log error]]))
 
 (def config
@@ -25,7 +26,7 @@
      (let [{:keys [log-type]} config
            params (get event "queryStringParameters" event)
            date-str (event "date")
-           date (util/get-date date-str)
+           date (time/get-date date-str)
            body (logs/get-log-entries logs-client date log-type)]
        (log "Successfully parsed logs" body)
        {"statusCode" 200
