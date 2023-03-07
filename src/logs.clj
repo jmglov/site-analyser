@@ -3,8 +3,9 @@
             [babashka.fs :as fs]
             [com.grzm.awyeah.client.api :as aws]
             [parser]
-            [util :refer [log error]])
-            [util :refer [lazy-concat log error]])
+            [requests]
+            [time]
+            [util :refer [lazy-concat log error] :as util])
   (:import (java.util.zip GZIPInputStream)))
 
 (defn handle-error [{err :Error :as resp}]
@@ -70,7 +71,7 @@
                   :cloudfront list-cloudfront-logs
                   :s3 list-s3-logs
                   (throw (ex-info (format "Invalid log type: %s" log-type)
-                                  {:s3-log-parser/error :invalid-log-type
+                                  {:logs/error :invalid-log-type
                                    :log-type log-type})))]
     (list-fn client date)))
 
@@ -81,7 +82,7 @@
           "application/x-gzip" #(GZIPInputStream. %)
           "text/plain" identity
           (throw (ex-info (format "Unexpected content type: %s" content-type)
-                          {:s3-log-parser/error :unexpected-content-type
+                          {:logs/error :unexpected-content-type
                            :content-type content-type})))]
     (->> body
          content-handler
@@ -95,14 +96,43 @@
        handle-error
        get-lines))
 
+(defn summarise-cloudfront-entry
+  [{:keys [date time c-ip cs-uri-stem cs-user-agent referer x-edge-request-id]}]
+  {:date date
+   :time time
+   :ip c-ip
+   :path cs-uri-stem
+   :referer referer
+   :request-id x-edge-request-id
+   :user-agent cs-user-agent})
+
+(defn summarise-s3-entry
+  [{:keys [time remote-ip request-id request-uri referer user-agent]}]
+  (let [{:keys [date time]} (time/parse-datetime "dd/MMM/yyyy:HH:mm:s Z" time)
+        path (-> (re-seq #"^\w+ ([^? ]+)[? ].+$" request-uri) first second)]
+    {:date date
+     :time time
+     :ip remote-ip
+     :path path
+     :referer referer
+     :request-id request-id
+     :user-agent user-agent}))
+
 (defn get-log-entries
   ([client date]
    (get-log-entries client date :cloudfront {}))
   ([client date log-type]
-   (let [logs (list-logs client date log-type)
+   (let [summarise (case log-type
+                     :cloudfront summarise-cloudfront-entry
+                     :s3 summarise-s3-entry
+                     (throw (ex-info (format "Invalid log type: %s" log-type)
+                                     {:logs/error :invalid-log-type
+                                      :log-type log-type})))
+         logs (list-logs client date log-type)
          entries (->> logs
                       (mapcat (partial get-log-lines client))
-                      (parser/parse-lines log-type))]
+                      (parser/parse-lines log-type)
+                      (map summarise))]
      {:date (str date), :log-type log-type, :logs logs, :entries entries})))
 
 (defn write-entries! [dir {:keys [date] :as entries}]
