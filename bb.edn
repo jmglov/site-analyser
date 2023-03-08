@@ -14,13 +14,16 @@
                                      (println "Missing environment variable:" k)
                                      (System/exit 1))
                                    v))
-                 lambda-env-vars (->> ["CLOUDFRONT_DIST_ID" "S3_BUCKET" "S3_PREFIX"]
+                 lambda-env-vars (->> ["CLOUDFRONT_DIST_ID" "LOGS_BUCKET" "LOGS_PREFIX"]
                                       (map (fn [k] (format "%s=%s" k (get-env k))))
-                                      (concat ["VIEWS_TABLE=${aws_dynamodb_table.site_analyser.name}"]))]
+                                      (concat ["VIEWS_TABLE=${aws_dynamodb_table.site_analyser.name}"]))
+                 _ (doseq [v ["TF_VAR_logs_bucket" "TF_VAR_logs_prefix"]] (get-env v))]
              (blambda/dispatch
               {:bb-arch "arm64"
+               :bb-version "1.2.174"
                :lambda-name "site-analyser"
                :lambda-handler "handler/handle-request"
+               :lambda-timeout "600"
                :deps-layer-name "s3-log-parser-deps"
                :lambda-iam-role "${aws_iam_role.lambda.arn}"
                :lambda-env-vars lambda-env-vars

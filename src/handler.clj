@@ -24,8 +24,8 @@
    :log-type (get-env "LOG_TYPE" :cloudfront)
    :num-days (util/->int (get-env "NUM_DAYS" "7"))
    :num-top-urls (util/->int (get-env "NUM_TOP_URLS" "10"))
-   :s3-bucket (get-env "S3_BUCKET")
-   :s3-prefix (get-env "S3_PREFIX")
+   :s3-bucket (get-env "LOGS_BUCKET")
+   :s3-prefix (get-env "LOGS_PREFIX")
    :views-table (get-env "VIEWS_TABLE")})
 
 (log "Lambda starting" {:config config})

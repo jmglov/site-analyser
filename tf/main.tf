@@ -1,3 +1,6 @@
+variable "logs_bucket" {}
+variable "logs_prefix" {}
+
 resource "aws_lambda_function_url" "lambda" {
   function_name = aws_lambda_function.lambda.function_name
   authorization_type = "NONE"
@@ -74,6 +77,17 @@ resource "aws_iam_policy" "lambda" {
           "dynamodb:UpdateItem",
         ]
         Resource = aws_dynamodb_table.site_analyser.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.logs_bucket}",
+          "arn:aws:s3:::${var.logs_bucket}/${var.logs_prefix}*"
+        ]
       }
     ]
   })
