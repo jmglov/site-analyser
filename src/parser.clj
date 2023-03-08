@@ -83,12 +83,13 @@
        (map #(if (= "-" %) nil %))
        (zipmap s3-keys)))
 
-(defn parse-lines [log-type lines]
-  (case log-type
-    :cloudfront (->> lines
-                     (sequence (comp (remove #(str/starts-with? % "#"))
-                                     (map parse-cloudfront-line))))
-    :s3 (map parse-s3-line lines)
-    (throw (ex-info (format "Invalid log type: %s" log-type)
-                    {:s3-log-parser/error :invalid-log-type
-                     :log-type log-type}))))
+(defn parse-lines [log-type {:keys [log-file lines]}]
+  {:log-file log-file
+   :entries (case log-type
+              :cloudfront (->> lines
+                               (sequence (comp (remove #(str/starts-with? % "#"))
+                                               (map parse-cloudfront-line))))
+              :s3 (map parse-s3-line lines)
+              (throw (ex-info (format "Invalid log type: %s" log-type)
+                              {:s3-log-parser/error :invalid-log-type
+                               :log-type log-type})))})

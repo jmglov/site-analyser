@@ -36,8 +36,9 @@
                :url (:S url)
                :views (util/->int (:N views))}))))
 
-(defn entry->dynamo-item [{:keys [date ip path referer request-id time user-agent]}]
-  {:Item (merge {"date" {:S date}
+(defn entry->dynamo-item [{:keys [log-file date ip path referer request-id time user-agent]}]
+  {:Item (merge {"log-file" {:S log-file}
+                 "date" {:S date}
                  "url" {:S (format "url:%s" path)}
                  "time" {:S time}
                  "request-id" {:S (format "%sT%sZ;%s" date time request-id)}
