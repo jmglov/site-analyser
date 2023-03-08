@@ -2,6 +2,7 @@
 /target/
 /.work/
 /bb
+/src/dev
 .lein-deps-sum
 .lein-repl-history
 .lein-plugins/

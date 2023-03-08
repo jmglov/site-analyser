@@ -1,5 +1,6 @@
 (ns util
-  (:require [clojure.java.io :as io]))
+  (:require [clojure.java.io :as io])
+  (:import (java.time Instant)))
 
 (defmacro ->map [& ks]
   (assert (every? symbol? ks))
@@ -33,3 +34,11 @@
 (defn read-edn [f]
   (with-open [r (io/reader f)]
     (read (java.io.PushbackReader. r))))
+
+(defn validate-aws-response [res]
+  (when (:cognitect.anomalies/category res)
+    (let [data (merge (select-keys res [:cognitect.anomalies/category])
+                      {:err-msg (:Message res)
+                       :err-type (:__type res)})]
+      (error "AWS request failed" data)))
+  res)

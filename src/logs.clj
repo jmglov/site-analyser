@@ -3,7 +3,6 @@
             [babashka.fs :as fs]
             [com.grzm.awyeah.client.api :as aws]
             [parser]
-            [requests]
             [time]
             [util :refer [lazy-concat log error] :as util])
   (:import (java.util.zip GZIPInputStream)))
@@ -43,6 +42,7 @@
                    (log (format "Requesting page %d" page-num) request)
                    (-> (aws/invoke s3-client {:op :ListObjectsV2
                                               :request request})
+                       util/validate-aws-response
                        (assoc :page-num page-num)))]
     response))
 
@@ -120,11 +120,15 @@
 
 (defn get-log-entries
   ([client date]
-   (get-log-entries client date :cloudfront {}))
+   (get-log-entries client date :cloudfront))
   ([client date log-type]
-   (let [summarise (case log-type
-                     :cloudfront summarise-cloudfront-entry
-                     :s3 summarise-s3-entry
+   (get-log-entries client date log-type false))
+  ([client date log-type raw-logs?]
+   (let [summarise (cond
+                     raw-logs? identity
+                     (= :cloudfront log-type) summarise-cloudfront-entry
+                     (= :s3 log-type) summarise-s3-entry
+                     :else
                      (throw (ex-info (format "Invalid log type: %s" log-type)
                                      {:logs/error :invalid-log-type
                                       :log-type log-type})))
