@@ -8,7 +8,9 @@
           ks))
 
 (defn ->int [s]
-  (Integer/parseUnsignedInt s))
+  (if (string? s)
+    (Integer/parseUnsignedInt s)
+    s))
 
 (defn log [msg data]
   (prn {:msg msg

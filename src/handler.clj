@@ -80,12 +80,12 @@
      :body (selmer/render (slurp "index.html")
                           tmpl-vars)}))
 
-(defn get-logs [event]
+(defn get-logs [{:keys [date limit] :as event}]
   (let [{:keys [log-type]} config
-        date-str (event "date")
-        date (time/get-date date-str)
-        entries (logs/get-log-entries logs-client date log-type)]
-    (log "Successfully parsed logs" entries)
+        date (time/get-date date)
+        limit (when limit (util/->int limit))
+        client (merge logs-client (when limit {:limit limit}))
+        entries (logs/get-log-entries client date log-type)]
     entries))
 
 (defn handle-request

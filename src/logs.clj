@@ -46,7 +46,9 @@
                        (assoc :page-num page-num)))]
     response))
 
-(defn list-objects [{:keys [limit] :as logs-client} prefix]
+(defn list-objects [{:keys [s3-bucket limit] :as logs-client} prefix]
+  (log "Listing S3 objects" (merge (->map s3-bucket prefix)
+                                   (when limit {:limit limit})))
   (let [apply-limit (if limit (partial take limit) identity)]
     (->> (iteration (partial get-s3-page logs-client prefix)
                     :vf :Contents)
