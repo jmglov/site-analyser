@@ -35,11 +35,26 @@
 
 (defn serve-dashboard [{:keys [queryStringParameters] :as event}]
   (let [date (:date queryStringParameters)
-        dates (if date
+        start-date (:startDate queryStringParameters)
+        end-date (:endDate queryStringParameters)
+        dates (cond
+                date
                 [date]
+
+                (and start-date end-date)
+                (let [start-date (time/get-date start-date)
+                      end-date (time/get-date end-date)]
+                  (->> (iterate #(.plusDays % 1) start-date)
+                       (take-while #(.isBefore % (.plusDays end-date 1)))
+                       (map str)))
+
+                :else
                 (->> (range (:num-days config))
                      (map #(str (.minusDays (LocalDate/now) %)))))
-        date-label (or date (format "last %d days" (:num-days config)))
+        date-label (cond
+                     date date
+                     (and start-date end-date) (format "%s - %s" start-date end-date)
+                     :else (format "last %d days" (:num-days config)))
         all-views (mapcat #(page-views/get-views views-client %) dates)
         total-views (reduce + (map :views all-views))
         top-urls (->> all-views
@@ -81,6 +96,10 @@
                           tmpl-vars)}))
 
 (defn get-logs [{:keys [date limit] :as event}]
+  (when-not date
+    (error "Missing required parameter"
+           {:site-analyser/error :missing-parameter
+            :site-analyser/parameter "date"}))
   (let [{:keys [log-type]} config
         date (time/get-date date)
         limit (when limit (util/->int limit))
