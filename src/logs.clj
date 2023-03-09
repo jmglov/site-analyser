@@ -127,12 +127,10 @@
             :user-agent user-agent}))
        entries))
 
-(defn get-log-entries
-  ([client date]
-   (get-log-entries client date :cloudfront))
-  ([client date log-type]
-   (get-log-entries client date log-type false))
-  ([client date log-type raw-logs?]
+(defn get-log-entries-from-files
+  ([client logs log-type]
+   (get-log-entries-from-files client logs log-type false))
+  ([client logs log-type raw-logs?]
    (let [summarise (cond
                      raw-logs? identity
                      (= :cloudfront log-type) summarise-cloudfront-entries
@@ -141,12 +139,21 @@
                      (throw (ex-info (format "Invalid log type: %s" log-type)
                                      {:logs/error :invalid-log-type
                                       :log-type log-type})))
-         logs (list-logs client date log-type)
          entries (->> logs
                       (map (partial get-log-lines client))
-                      (parser/parse-lines log-type)
-                      summarise)]
-     {:date (str date), :log-type log-type, :logs logs, :entries entries})))
+                      (map (partial parser/parse-lines log-type))
+                      (mapcat summarise))]
+     {:log-type log-type, :logs logs, :entries entries})))
+
+(defn get-log-entries
+  ([client date]
+   (get-log-entries client date :cloudfront))
+  ([client date log-type]
+   (get-log-entries client date log-type false))
+  ([client date log-type raw-logs?]
+   (let [logs (list-logs client date log-type)
+         entries (get-log-entries-from-files client logs log-type raw-logs?)]
+     (assoc entries :date (str date)))))
 
 (defn write-entries! [dir {:keys [date] :as entries}]
   (spit (fs/file dir (format "%s.edn" date))
