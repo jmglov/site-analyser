@@ -93,12 +93,24 @@
   ([{:keys [dynamodb views-table] :as client} entries overwrite?]
    (->> entries
         (group-by :log-file)
-        (map (fn [[log-file entries]]
-               [log-file
-                (concat (entries->dynamo-puts views-table entries overwrite?)
-                        (entries->dynamo-updates views-table entries))]))
+        (mapcat
+         (fn [[log-file entries]]
+           ;; The max number of items in a Dynamo TransactItems request
+           ;; is 100, and each entry generates two items (a Put and an
+           ;; Update), so we need to chunk them 50 at a time.
+           (->> (partition-all 50 entries)
+                (map-indexed
+                 (fn [i entries]
+                   (let [log-file (format "%s.%s" log-file i)
+                         entries (map #(assoc % :log-file log-file) entries)]
+                     [log-file
+                      (concat (entries->dynamo-puts views-table entries overwrite?)
+                              (entries->dynamo-updates views-table entries))]))))))
         (map (fn [[log-file transact-items]]
                (let [req {:TransactItems transact-items}
+                     _ (util/log "Recording views"
+                                 {:log-file log-file
+                                  :num-entries (/ (count transact-items) 2)})
                      res (aws/invoke dynamodb {:op :TransactWriteItems
                                                :request req})]
                  [log-file
@@ -107,7 +119,12 @@
                     {::success? false, ::reason :already-recorded}
 
                     (:cognitect.anomalies/category res)
-                    {::success? false, ::reason res, ::request req}
+                    (do
+                      (util/log "Dynamo request failed"
+                                {:log-file log-file
+                                 :request req
+                                 :response res})
+                      {::success? false, ::reason res})
 
                     :else
                     {::success true})])))
