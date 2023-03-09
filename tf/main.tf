@@ -73,6 +73,7 @@ resource "aws_iam_policy" "lambda" {
       {
         Effect = "Allow"
         Action = [
+          "dynamodb:PutItem",
           "dynamodb:Query",
           "dynamodb:UpdateItem",
         ]

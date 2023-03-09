@@ -88,6 +88,10 @@
         entries (logs/get-log-entries client date log-type)]
     entries))
 
+(defn backfill-visits [{:keys [overwrite] :as event}]
+  (let [{:keys [entries]} (get-logs event)]
+    (page-views/record-views! views-client entries overwrite)))
+
 (defn handle-request
   ([]
    (handle-request {} {}))
@@ -112,6 +116,11 @@
                        {"statusCode" 200
                         "body" (json/encode logs)})
 
+                     ["POST" "/backfill"]
+                     (let [res (backfill-visits queryStringParameters)]
+                       {"statusCode" 200
+                        "body" (json/encode res)})
+
                      {:statusCode 404
                       :headers {"Content-Type" "application/json"}
                       :body (json/generate-string {:msg (format "Resource not found: %s" path)})}))]
@@ -123,9 +132,8 @@
          "get-logs"
          (get-logs event)
 
-         "backfill"
-         (error "Invalid operation" {:handler/error :not-implemented
-                                     :operation operation})
+         "backfill-visits"
+         (backfill-visits event)
 
          (error "Invalid operation" {:handler/error :invalid-operation
                                      :operation operation})))
