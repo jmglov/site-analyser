@@ -36,31 +36,79 @@
                :url (:S url)
                :views (util/->int (:N views))}))))
 
-(defn entry->dynamo-item [{:keys [log-file date ip path referer request-id time user-agent]}]
-  {:Item (merge {"log-file" {:S log-file}
-                 "date" {:S date}
-                 "url" {:S (format "url:%s" path)}
-                 "time" {:S time}
-                 "request-id" {:S (format "%sT%sZ;%s" date time request-id)}
-                 "client-ip" {:S ip}
-                 "user-agent" {:S user-agent}}
-                (when referer
-                  (->map referer)))})
+(defn entry->dynamo-item
+  [{:keys [log-file date ip path referer request-id time user-agent]}
+   overwrite?]
+  (let [compound-request-id (format "%sT%sZ;%s" date time request-id)]
+    (merge
+     {:Item (merge {"url" {:S (format "url:%s" path)}  ; GSI partition key
+                    "request-id" {:S compound-request-id}  ; GSI sort key
 
-(defn entry->dynamo-update [{:keys [date path]}]
+                    ;; Since date:url is the table's composite key, it must be unique.
+                    ;; Instead of using date, we'll use compound-request-id, which is
+                    ;; formed by concatenating the datetime and the original request ID,
+                    ;; which is guaranteed to be unique.
+                    "date" {:S compound-request-id}  ; table partition key
+
+                    "time" {:S time}
+                    "client-ip" {:S ip}
+                    "user-agent" {:S user-agent}
+                    "log-file" {:S log-file}}
+                   (when referer
+                     (->map referer)))}
+     (when-not overwrite?
+       {:ConditionExpression "attribute_not_exists(#url)"
+        :ExpressionAttributeNames {"#url" "url"}}))))
+
+(defn entry->dynamo-update [{:keys [date path count]}]
   {:Key {:date {:S date}
          :url {:S path}}
    :UpdateExpression "ADD #views :increment SET #reqid = :reqid"
    :ExpressionAttributeNames {"#views" "views", "#reqid" "request-id"}
-   :ExpressionAttributeValues {":increment" {:N "1"}
+   :ExpressionAttributeValues {":increment" {:N (str count)}
                                ":reqid" {:S "count"}}})
 
-(defn record-view! [{:keys [dynamodb views-table] :as client} entry]
-  (let [dynamo-item (assoc (entry->dynamo-item entry)
-                           :TableName views-table)
-        dynamo-update (assoc (entry->dynamo-update entry)
-                             :TableName views-table)]
-    (aws/invoke dynamodb {:op :TransactWriteItems
-                          :request {:TransactItems
-                                    [{:Put dynamo-item}
-                                     {:Update dynamo-update}]}})))
+(defn entries->dynamo-puts [table-name entries overwrite?]
+  (map (fn [entry]
+         {:Put (assoc (entry->dynamo-item entry overwrite?)
+                      :TableName table-name)})
+       entries))
+
+(defn entries->dynamo-updates [table-name entries]
+  (->> entries
+       (group-by (juxt :date :path))
+       (map (fn [[_ entries]]
+              (assoc (first entries) :count (count entries))))
+       (map (fn [entry]
+              {:Update (assoc (entry->dynamo-update entry)
+                              :TableName table-name)}))))
+
+(defn conditional-check-failed? [res]
+  (and (= :cognitect.anomalies/incorrect (:cognitect.anomalies/category res))
+       (some #(= "ConditionalCheckFailed" (:Code %)) (:CancellationReasons res))))
+
+(defn record-views!
+  ([client entries]
+   (record-views! client entries false))
+  ([{:keys [dynamodb views-table] :as client} entries overwrite?]
+   (->> entries
+        (group-by :log-file)
+        (map (fn [[log-file entries]]
+               [log-file
+                (concat (entries->dynamo-puts views-table entries overwrite?)
+                        (entries->dynamo-updates views-table entries))]))
+        (map (fn [[log-file transact-items]]
+               (let [req {:TransactItems transact-items}
+                     res (aws/invoke dynamodb {:op :TransactWriteItems
+                                               :request req})]
+                 [log-file
+                  (cond
+                    (conditional-check-failed? res)
+                    {::success? false, ::reason :already-recorded}
+
+                    (:cognitect.anomalies/category res)
+                    {::success? false, ::reason res, ::request req}
+
+                    :else
+                    {::success true})])))
+        (into {}))))
