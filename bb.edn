@@ -14,7 +14,7 @@
                                      (println "Missing environment variable:" k)
                                      (System/exit 1))
                                    v))
-                 lambda-env-vars (->> ["CLOUDFRONT_DIST_ID" "LOGS_BUCKET" "LOGS_PREFIX"]
+                 lambda-env-vars (->> ["BASE_URL" "CLOUDFRONT_DIST_ID" "LOGS_BUCKET" "LOGS_PREFIX"]
                                       (map (fn [k] (format "%s=%s" k (get-env k))))
                                       (concat ["VIEWS_TABLE=${aws_dynamodb_table.site_analyser.name}"]))
                  _ (doseq [v ["TF_VAR_logs_bucket" "TF_VAR_logs_prefix"]] (get-env v))]

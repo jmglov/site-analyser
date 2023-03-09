@@ -66,7 +66,7 @@
             {% for i in top-urls %}
             <tr>
               <td style="width: 20px">{{i.rank}}</td>
-              <td><a href="{{i.url}}">{{i.url}}</a></td>
+              <td><a href="{{base-url}}{{i.url}}">{{i.url}}</a></td>
               <td style="width: 20px">{{i.views}}</td>
             </tr>
             {% endfor %}

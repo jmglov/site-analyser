@@ -20,6 +20,7 @@
 
 (def config
   {:region (get-env "AWS_REGION" :eu-west-1)
+   :base-url (get-env "BASE_URL" "")
    :cloudfront-dist-id (get-env "CLOUDFRONT_DIST_ID")
    :log-type (get-env "LOG_TYPE" :cloudfront)
    :num-days (util/->int (get-env "NUM_DAYS" "7"))
@@ -55,6 +56,7 @@
                      date date
                      (and start-date end-date) (format "%s - %s" start-date end-date)
                      :else (format "last %d days" (:num-days config)))
+        {:keys [base-url]} config
         all-views (mapcat #(page-views/get-views views-client %) dates)
         total-views (reduce + (map :views all-views))
         top-urls (->> all-views
@@ -86,6 +88,7 @@
                                     :type "quantitative"}}})
         tmpl-vars (->map date-label
                          total-views
+                         base-url
                          top-urls
                          chart-id
                          chart-spec)]
