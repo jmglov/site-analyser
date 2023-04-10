@@ -98,7 +98,7 @@
                                         :Key s3-key}})
        handle-error
        get-lines
-       (assoc {:log-file (format "s3://%s/%s%s" s3-bucket s3-prefix s3-key)}
+       (assoc {:log-file (format "s3://%s/%s" s3-bucket s3-key)}
               :lines)))
 
 (defn summarise-cloudfront-entries [{:keys [log-file entries]}]
