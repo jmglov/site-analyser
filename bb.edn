@@ -20,7 +20,7 @@
                  _ (doseq [v ["TF_VAR_logs_bucket" "TF_VAR_logs_prefix"]] (get-env v))]
              (blambda/dispatch
               {:bb-arch "arm64"
-               :bb-version "1.2.174"
+               :bb-version "1.3.176"
                :lambda-name "site-analyser"
                :lambda-handler "handler/handle-request"
                :lambda-timeout "600"
