@@ -1,5 +1,8 @@
 variable "logs_bucket" {}
 variable "logs_prefix" {}
+variable "entries_prefix" {
+  default = "entries/"
+}
 
 resource "aws_lambda_function_url" "lambda" {
   function_name = aws_lambda_function.lambda.function_name
@@ -82,8 +85,14 @@ resource "aws_iam_policy" "lambda" {
         ]
         Resource = [
           "arn:aws:s3:::${var.logs_bucket}",
-          "arn:aws:s3:::${var.logs_bucket}/${var.logs_prefix}*"
+          "arn:aws:s3:::${var.logs_bucket}/${var.logs_prefix}*",
+          "arn:aws:s3:::${var.logs_bucket}/${var.entries_prefix}*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = "s3:PutObject"
+        Resource = "arn:aws:s3:::${var.logs_bucket}/${var.entries_prefix}*"
       }
     ]
   })

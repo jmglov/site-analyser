@@ -1,5 +1,6 @@
 (ns logs
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [babashka.fs :as fs]
             [com.grzm.awyeah.client.api :as aws]
             [parser]
@@ -100,6 +101,27 @@
        get-lines
        (assoc {:log-file (format "s3://%s/%s" s3-bucket s3-key)}
               :lines)))
+
+(defn get-entries [{:keys [s3-client s3-bucket entries-prefix]} date]
+  (let [s3-key (format "%s%s.edn" entries-prefix date)]
+    (log "Getting entries file from S3" (->map s3-bucket s3-key))
+    (->> (aws/invoke s3-client {:op :GetObject
+                                :request {:Bucket s3-bucket
+                                          :Key s3-key}})
+         handle-error
+         :Body
+         io/reader
+         (java.io.PushbackReader.)
+         edn/read)))
+
+(defn put-entries! [{:keys [s3-client s3-bucket entries-prefix]} {:keys [entries date]}]
+  (let [s3-key (format "%s%s.edn" entries-prefix date)]
+    (log "Putting entries file to S3" (->map s3-bucket s3-key))
+    (aws/invoke s3-client
+                {:op :PutObject
+                 :request {:Bucket s3-bucket
+                           :Key s3-key
+                           :Body (.getBytes (pr-str (group-by :path entries)) "UTF-8")}})))
 
 (defn summarise-cloudfront-entries [{:keys [log-file entries]}]
   (map (fn [{:keys [date time c-ip cs-uri-stem cs-user-agent referer x-edge-request-id]}]

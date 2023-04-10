@@ -16,7 +16,8 @@
                                    v))
                  lambda-env-vars (->> ["BASE_URL" "CLOUDFRONT_DIST_ID" "LOGS_BUCKET" "LOGS_PREFIX"]
                                       (map (fn [k] (format "%s=%s" k (get-env k))))
-                                      (concat ["VIEWS_TABLE=${aws_dynamodb_table.site_analyser.name}"]))
+                                      (concat ["ENTRIES_PREFIX=entries/"
+                                               "VIEWS_TABLE=${aws_dynamodb_table.site_analyser.name}"]))
                  _ (doseq [v ["TF_VAR_logs_bucket" "TF_VAR_logs_prefix"]] (get-env v))]
              (blambda/dispatch
               {:bb-arch "arm64"
@@ -40,6 +41,7 @@
 
                               ;; HTML templates
                               "index.html"
+                              "by-path.html"
 
                               ;; favicon
                               "android-chrome-192x192.png"

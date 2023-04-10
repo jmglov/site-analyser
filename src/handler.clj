@@ -22,6 +22,7 @@
   {:region (get-env "AWS_REGION" :eu-west-1)
    :base-url (get-env "BASE_URL" "")
    :cloudfront-dist-id (get-env "CLOUDFRONT_DIST_ID")
+   :entries-prefix (get-env "ENTRIES_PREFIX")
    :log-type (get-env "LOG_TYPE" :cloudfront)
    :num-days (util/->int (get-env "NUM_DAYS" "7"))
    :num-top-urls (util/->int (get-env "NUM_TOP_URLS" "10"))
@@ -98,6 +99,21 @@
      :body (selmer/render (slurp "index.html")
                           tmpl-vars)}))
 
+(defn serve-dashboard-path [{:keys [queryStringParameters] :as event}]
+  (let [date (:date queryStringParameters)
+        path (:path queryStringParameters)
+        entries (get (logs/get-entries logs-client date) path)
+        {:keys [base-url]} config
+        tmpl-vars (->map date
+                         base-url
+                         path
+                         entries)]
+    (util/log "Rendering dashboard" (dissoc tmpl-vars :entries))
+    {:statusCode 200
+     :headers {"Content-Type" "text/html"}
+     :body (selmer/render (slurp "by-path.html")
+                          tmpl-vars)}))
+
 (defn get-logs [{:keys [date limit] :as event}]
   (when-not date
     (error "Missing required parameter"
@@ -132,6 +148,9 @@
                    (case [method path]
                      ["GET" "/dashboard"]
                      (serve-dashboard event)
+
+                     ["GET" "/dashboard/by-path"]
+                     (serve-dashboard-path event)
 
                      ["GET" "/logs"]
                      (let [logs (get-logs queryStringParameters)]
