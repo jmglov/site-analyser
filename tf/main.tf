@@ -10,18 +10,18 @@ output "function_url" {
   value = aws_lambda_function_url.lambda.function_url
 }
 
+resource "aws_lambda_permission" "lambda" {
+  action = "lambda:InvokeFunctionUrl"
+  function_name = aws_lambda_function.lambda.function_name
+  principal = "*"
+  function_url_auth_type = "NONE"
+}
+
 resource "aws_dynamodb_table" "site_analyser" {
   name = "site-analyser"
   billing_mode = "PAY_PER_REQUEST"
   hash_key = "date"
   range_key = "url"
-
-  global_secondary_index {
-    name = "requests"
-    hash_key = "url"
-    range_key = "request-id"
-    projection_type = "ALL"
-  }
 
   attribute {
     name = "date"
@@ -30,11 +30,6 @@ resource "aws_dynamodb_table" "site_analyser" {
 
   attribute {
     name = "url"
-    type = "S"
-  }
-
-  attribute {
-    name = "request-id"
     type = "S"
   }
 }

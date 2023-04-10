@@ -36,30 +36,6 @@
                :url (:S url)
                :views (util/->int (:N views))}))))
 
-(defn entry->dynamo-item
-  [{:keys [log-file date ip path referer request-id time user-agent]}
-   overwrite?]
-  (let [compound-request-id (format "%sT%sZ;%s" date time request-id)]
-    (merge
-     {:Item (merge {"url" {:S (format "url:%s" path)}  ; GSI partition key
-                    "request-id" {:S compound-request-id}  ; GSI sort key
-
-                    ;; Since date:url is the table's composite key, it must be unique.
-                    ;; Instead of using date, we'll use compound-request-id, which is
-                    ;; formed by concatenating the datetime and the original request ID,
-                    ;; which is guaranteed to be unique.
-                    "date" {:S compound-request-id}  ; table partition key
-
-                    "time" {:S time}
-                    "client-ip" {:S ip}
-                    "user-agent" {:S user-agent}
-                    "log-file" {:S log-file}}
-                   (when referer
-                     (->map referer)))}
-     (when-not overwrite?
-       {:ConditionExpression "attribute_not_exists(#url)"
-        :ExpressionAttributeNames {"#url" "url"}}))))
-
 (defn entry->dynamo-update [{:keys [date path count]}]
   {:Key {:date {:S date}
          :url {:S path}}
@@ -67,12 +43,6 @@
    :ExpressionAttributeNames {"#views" "views", "#reqid" "request-id"}
    :ExpressionAttributeValues {":increment" {:N (str count)}
                                ":reqid" {:S "count"}}})
-
-(defn entries->dynamo-puts [table-name entries overwrite?]
-  (map (fn [entry]
-         {:Put (assoc (entry->dynamo-item entry overwrite?)
-                      :TableName table-name)})
-       entries))
 
 (defn entries->dynamo-updates [table-name entries]
   (->> entries
@@ -103,9 +73,7 @@
                  (fn [i entries]
                    (let [log-file (format "%s.%s" log-file i)
                          entries (map #(assoc % :log-file log-file) entries)]
-                     [log-file
-                      (concat (entries->dynamo-puts views-table entries overwrite?)
-                              (entries->dynamo-updates views-table entries))]))))))
+                     [log-file (entries->dynamo-updates views-table entries)]))))))
         (map (fn [[log-file transact-items]]
                (let [req {:TransactItems transact-items}
                      _ (util/log "Recording views"
