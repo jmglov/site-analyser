@@ -26,13 +26,16 @@ using it for managing your infrastructure) in the manner of your choosing.
 
 Set the following environment variables:
 - `ARTIFACTS_BUCKET`: S3 bucket to use for lambda artifacts
+- `BASE_URL`: base URL of the website being analysed
 - `CLOUDFRONT_DIST_ID`: ID of your Cloudfront distribution
-- `S3_BUCKET`: S3 bucket where your logs are stored
-- `S3_PREFIX`: prefix in the bucket where your logs are stored
+- `LOGS_BUCKET`: S3 bucket where your logs are stored
+- `LOGS_PREFIX`: prefix in the bucket where your logs are stored
 
 Run:
 
 ``` sh
+export TF_VAR_logs_bucket=$LOGS_BUCKET
+export TF_VAR_logs_prefix=$LOGS_PREFIX
 bb blambda build-all
 ```
 
