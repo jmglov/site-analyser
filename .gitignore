@@ -3,6 +3,7 @@
 /.work/
 /bb
 /src/dev
+/dev
 .lein-deps-sum
 .lein-repl-history
 .lein-plugins/
